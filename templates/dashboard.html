@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Parser Dashboard</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f4f7fb;
+            color: #1f2937;
+        }
+
+        .page {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .topbar h1 {
+            margin: 0;
+            font-size: 28px;
+            color: #111827;
+        }
+
+        .logout-link {
+            text-decoration: none;
+            background: #111827;
+            color: #ffffff;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: 0.2s ease;
+        }
+
+        .logout-link:hover {
+            background: #1f2937;
+        }
+
+        .card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(17, 24, 39, 0.08);
+            margin-bottom: 24px;
+        }
+
+        .card h2,
+        .card h3,
+        .card h4 {
+            margin-top: 0;
+            color: #111827;
+        }
+
+        .upload-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-top: 16px;
+        }
+
+        .file-input {
+            flex: 1;
+            min-width: 240px;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            background: #f9fafb;
+        }
+
+        .upload-btn {
+            border: none;
+            background: #2563eb;
+            color: #ffffff;
+            padding: 12px 18px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s ease;
+        }
+
+        .upload-btn:hover {
+            background: #1d4ed8;
+        }
+
+        .flash-wrap {
+            margin-bottom: 20px;
+        }
+
+        .flash {
+            padding: 14px 16px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .flash.success {
+            background: #ecfdf3;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .flash.danger,
+        .flash.error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .flash.warning {
+            background: #fffbeb;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+
+        .flash.info {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+        }
+
+        .section-title {
+            margin-bottom: 18px;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .detail-box {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+
+        .detail-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+            word-break: break-word;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            margin-top: 18px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 500px;
+            background: #ffffff;
+        }
+
+        thead th {
+            background: #f3f4f6;
+            color: #374151;
+            text-align: left;
+            padding: 14px 16px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        tbody td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+            color: #1f2937;
+        }
+
+        tbody tr:hover {
+            background: #f9fafb;
+        }
+
+        .empty-state {
+            padding: 20px;
+            background: #f9fafb;
+            border: 1px dashed #d1d5db;
+            border-radius: 12px;
+            color: #6b7280;
+            text-align: center;
+        }
+
+        .muted {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        @media (max-width: 640px) {
+            .topbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .logout-link {
+                text-align: center;
+            }
+
+            .upload-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .upload-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="topbar">
+            <h1>Order Parser Dashboard</h1>
+            <a class="logout-link" href="{{ url_for('logout') }}">Logout</a>
+        </div>
+
+        <div class="card">
+            <h2>Upload Order File</h2>
+            <p class="muted">Upload a PDF or Excel file to extract order details and line items.</p>
+
+            <div class="flash-wrap">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                  {% if messages %}
+                    {% for category, message in messages %}
+                      <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                  {% endif %}
+                {% endwith %}
+            </div>
+
+            <form method="POST" enctype="multipart/form-data" class="upload-form">
+                <input class="file-input" type="file" name="file" accept=".pdf,.xlsx,.xls" required>
+                <button class="upload-btn" type="submit">Upload & Parse</button>
+            </form>
+        </div>
+
+        {% if extracted_data %}
+        <div class="card">
+            <h3 class="section-title">Extracted Order Details</h3>
+
+            <div class="details-grid">
+                <div class="detail-box">
+                    <div class="detail-label">PO Number</div>
+                    <div class="detail-value">{{ extracted_data.get("order_number", "") }}</div>
+                </div>
+
+                <div class="detail-box">
+                    <div class="detail-label">Customer Name</div>
+                    <div class="detail-value">{{ extracted_data.get("customer_name", "") }}</div>
+                </div>
+
+                <div class="detail-box">
+                    <div class="detail-label">Address 1</div>
+                    <div class="detail-value">{{ extracted_data.get("address1", "") }}</div>
+                </div>
+
+                <div class="detail-box">
+                    <div class="detail-label">City</div>
+                    <div class="detail-value">{{ extracted_data.get("city", "") }}</div>
+                </div>
+
+                <div class="detail-box">
+                    <div class="detail-label">State</div>
+                    <div class="detail-value">{{ extracted_data.get("state", "") }}</div>
+                </div>
+
+                <div class="detail-box">
+                    <div class="detail-label">ZIP</div>
+                    <div class="detail-value">{{ extracted_data.get("zip", "") }}</div>
+                </div>
+
+                <div class="detail-box">
+                    <div class="detail-label">Country</div>
+                    <div class="detail-value">{{ extracted_data.get("country", "") }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title">Order Lines</h4>
+
+            {% if extracted_data.get("order_lines") %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 140px;">Qty</th>
+                            <th>SKU</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in extracted_data.get("order_lines", []) %}
+                        <tr>
+                            <td>{{ item.get("quantity", "") }}</td>
+                            <td>{{ item.get("sku", "") }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                No order lines were found in the uploaded file.
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
