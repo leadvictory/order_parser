@@ -96,7 +96,7 @@ def extract_order_details(pdf_path: str) -> Dict[str, Any]:
     items = parse_order_lines(raw_text)
 
     return {
-        "po_number": po_number,
+        "order_number": po_number,
         "customer_name": customer_name,
         "address1": address1,
         "city": city,

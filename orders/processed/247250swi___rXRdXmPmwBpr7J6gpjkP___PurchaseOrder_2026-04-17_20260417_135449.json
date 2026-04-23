@@ -1,0 +1,31 @@
+{
+    "po_number": "31596",
+    "customer_name": "LIFFCO POWER EQUIPMENT, INC",
+    "address1": "1835 HIGHLAND AVE",
+    "city": "NEW HYDE PARK",
+    "state": "NY",
+    "zip": "11040",
+    "country": "United States",
+    "order_lines": [
+        {
+            "quantity": 1,
+            "sku": "515386601"
+        },
+        {
+            "quantity": 1,
+            "sku": "590040701"
+        },
+        {
+            "quantity": 8,
+            "sku": "590324502"
+        },
+        {
+            "quantity": 1,
+            "sku": "596658301"
+        },
+        {
+            "quantity": 4,
+            "sku": "535472101"
+        }
+    ]
+}
