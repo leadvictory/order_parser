@@ -183,7 +183,7 @@ def dashboard():
             )
 
             flash("File uploaded and parsed successfully.", "success")
-            flash(f"Saved to pending: {saved_path}", "success")
+            # flash(f"Saved to pending: {saved_path}", "success")
         except Exception as e:
             flash(f"Error while parsing file: {str(e)}", "danger")
             return redirect(url_for("dashboard"))

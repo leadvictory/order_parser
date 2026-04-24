@@ -6,7 +6,7 @@ import time
 import csv
 import re
 from pathlib import Path
-
+from swi import extract_credentials_from_filename, upload_order
 # =========================
 # CONFIG
 # =========================
@@ -263,9 +263,13 @@ def connect_imap():
 
 def fetch_unread_message_uids(mail):
     mail.select("INBOX")
-    status, data = mail.uid("search", None, "UNSEEN")
+
+    search_criteria = '(UNSEEN FROM "jdopson@stevenwillandinc.com")'
+    status, data = mail.uid("search", None, search_criteria)
+
     if status != "OK":
         return []
+
     raw = data[0].decode().strip()
     return raw.split() if raw else []
 
