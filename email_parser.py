@@ -130,57 +130,80 @@ def extract_login_id(subject, body=""):
 
 import re
 
+import re
+
 def extract_sku_quantity_pairs(body):
     """
-    Extract SKU and quantity pairs from email body.
+    Extract SKU/quantity pairs from email body.
 
-    Supports bodies like:
+    Supports both formats:
 
-    Please order the following:
+    1) Horizontal:
+       Sku   Quantity
+       511010601 12
+       BCZ230TS 6
 
-    Precision Saw, West Warwick, RI
-
-    Sku                            Quantity
-    511010601          12
-    588049602          12
-    BCZ230TS           12
-    BCZ265S             6
+    2) Vertical:
+       Sku
+       quantity
+       3019-20PS
+       1
+       3004-20NLP2
+       3
     """
-
     pairs = []
-    in_items_section = False
+    lines = [line.strip() for line in body.splitlines() if line.strip()]
 
-    for raw_line in body.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
+    # Normalize spacing
+    lines = [re.sub(r"\s+", " ", line) for line in lines]
 
-        # Normalize spaces/tabs
-        line = re.sub(r"\s+", " ", line)
+    start_index = None
 
-        # Detect the header row
-        if re.search(r"\bsku\b", line, re.IGNORECASE) and re.search(r"\bquantity\b", line, re.IGNORECASE):
-            in_items_section = True
-            continue
+    # Find header
+    for i in range(len(lines) - 1):
+        if lines[i].lower() == "sku" and lines[i + 1].lower() == "quantity":
+            start_index = i + 2
+            break
 
-        # Ignore everything before the header
-        if not in_items_section:
-            continue
+        if re.search(r"\bsku\b", lines[i], re.IGNORECASE) and re.search(r"\bquantity\b", lines[i], re.IGNORECASE):
+            start_index = i + 1
+            break
 
-        # Match: SKU + quantity
-        # SKU can be numeric or alphanumeric like BCZ230TS
-        match = re.match(r"^([A-Z0-9]+)\s+(\d+)$", line, re.IGNORECASE)
+    if start_index is None:
+        return pairs
+
+    remaining = lines[start_index:]
+
+    # Case 1: vertical format (SKU on one line, qty on next line)
+    if remaining:
+        vertical_pairs = []
+        i = 0
+        while i + 1 < len(remaining):
+            sku = remaining[i].strip()
+            qty_line = remaining[i + 1].strip()
+
+            if re.fullmatch(r"[A-Z0-9\-]+", sku, re.IGNORECASE) and re.fullmatch(r"\d+", qty_line):
+                vertical_pairs.append({
+                    "sku": sku.upper(),
+                    "quantity": int(qty_line)
+                })
+                i += 2
+            else:
+                break
+
+        if vertical_pairs:
+            return vertical_pairs
+
+    # Case 2: horizontal format (SKU and qty on same line)
+    for line in remaining:
+        match = re.match(r"^([A-Z0-9\-]+)\s+(\d+)$", line, re.IGNORECASE)
         if match:
-            sku = match.group(1).upper()
-            quantity = int(match.group(2))
-            pairs.append({"sku": sku, "quantity": quantity})
-        else:
-            # Optional: stop if section ends and another text block starts
-            # break
-            pass
+            pairs.append({
+                "sku": match.group(1).upper(),
+                "quantity": int(match.group(2))
+            })
 
     return pairs
-
 
 def find_password_for_login(login_id, csv_path=USERS_CSV):
     """
