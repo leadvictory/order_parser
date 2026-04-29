@@ -134,12 +134,34 @@ def add_items_batch(sb, batch):
     sb.sleep(1)
 
 
+from urllib.parse import urlparse, parse_qs
+
 def checkout_order(sb, order):
     sb.open("https://www.swiedi.com/willand/webshop.php?mode=Checkout")
     sb.sleep(3)
 
     sb.type('input[name="txtCustPO"]', str(order.get("order_number", "")))
     sb.type('input[name="txtEmail"]', "info@stevenwillandinc.com")
+
+    address1 = (order.get("address1") or "").strip()
+    city = (order.get("city") or "").strip()
+    state = (order.get("state") or "").strip()
+    zip_code = (order.get("zip") or "").strip()
+
+    if address1:
+        sb.clear('input[name="txtShipAdr1"]')
+        sb.type('input[name="txtShipAdr1"]', address1)
+
+    if state:
+        sb.select_option_by_value('select[name="txtShipState"]', state)
+
+    if city:
+        sb.clear('input[name="txtShipCity"]')
+        sb.type('input[name="txtShipCity"]', city)
+
+    if zip_code:
+        sb.clear('input[name="txtShipZip"]')
+        sb.type('input[name="txtShipZip"]', zip_code)
 
     sb.select_option_by_value('select[name="txtPayment"]', 'On Account')
     sb.click('input#btnAccept')

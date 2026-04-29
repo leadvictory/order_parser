@@ -3,3 +3,4 @@ outputs/
 uploads/
 orders/
 downloaded_attachments/
+.env
