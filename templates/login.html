@@ -3,91 +3,231 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login</title>
+    <title>SWI Dealer Order Upload - Login</title>
     <style>
+        :root {
+            --bg: #f3f6f9;
+            --panel: #ffffff;
+            --text: #111827;
+            --muted: #6b7280;
+            --line: #d1d5db;
+            --brand-green: #69be28;
+            --brand-green-dark: #1f6f3e;
+            --brand-blue: #2563eb;
+            --brand-blue-dark: #1d4ed8;
+            --success-bg: #dcfce7;
+            --success-text: #166534;
+            --error-bg: #fee2e2;
+            --error-text: #991b1b;
+            --shadow-lg: 0 20px 45px rgba(15, 23, 42, 0.10);
+            --shadow-sm: 0 8px 20px rgba(15, 23, 42, 0.06);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
+            margin: 0;
+            min-height: 100vh;
             font-family: Arial, sans-serif;
-            background: #f4f6f8;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(105, 190, 40, 0.08), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(37, 99, 235, 0.06), transparent 24%),
+                var(--bg);
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
+            padding: 24px;
+        }
+
+        .login-shell {
+            width: 100%;
+            max-width: 460px;
         }
 
         .card {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-            width: 320px;
+            background: var(--panel);
+            border-radius: 22px;
+            box-shadow: var(--shadow-lg);
+            padding: 34px 30px 28px;
+            border: 1px solid rgba(17, 24, 39, 0.05);
         }
 
-        h2 {
-            margin-top: 0;
+        .brand {
             text-align: center;
+            margin-bottom: 26px;
+        }
+
+        .brand-logo {
+            max-width: 320px;
+            width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto 18px;
+        }
+
+        .eyebrow {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--brand-green-dark);
+            background: rgba(105, 190, 40, 0.12);
+            padding: 7px 11px;
+            border-radius: 999px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            line-height: 1.15;
+            color: var(--text);
+        }
+
+        .subtitle {
+            margin: 10px 0 0;
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--muted);
+        }
+
+        .flash {
+            padding: 12px 14px;
+            border-radius: 10px;
+            margin-bottom: 14px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .flash.success {
+            background: var(--success-bg);
+            color: var(--success-text);
+        }
+
+        .flash.error {
+            background: var(--error-bg);
+            color: var(--error-text);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #374151;
         }
 
         input {
             width: 100%;
-            padding: 10px;
-            margin-top: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            box-sizing: border-box;
+            padding: 13px 14px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            font-size: 15px;
+            background: #fff;
+            color: var(--text);
+            transition: 0.2s ease;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
         }
 
-        button {
+        input:focus {
+            outline: none;
+            border-color: var(--brand-blue);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10);
+        }
+
+        .login-btn {
             width: 100%;
-            padding: 10px;
+            padding: 13px 16px;
             border: none;
-            background: #2563eb;
+            background: linear-gradient(135deg, var(--brand-green), var(--brand-green-dark));
             color: white;
-            border-radius: 8px;
+            border-radius: 12px;
             cursor: pointer;
             font-size: 16px;
+            font-weight: 700;
+            transition: 0.2s ease;
+            box-shadow: var(--shadow-sm);
+            margin-top: 4px;
         }
 
-        button:hover {
-            background: #1d4ed8;
+        .login-btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(0.98);
         }
 
-        .flash {
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            font-size: 14px;
+        .footer-note {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--muted);
         }
 
-        .flash.success {
-            background: #dcfce7;
-            color: #166534;
-        }
+        @media (max-width: 520px) {
+            body {
+                padding: 16px;
+            }
 
-        .flash.error {
-            background: #fee2e2;
-            color: #991b1b;
+            .card {
+                padding: 24px 18px 22px;
+                border-radius: 18px;
+            }
+
+            .brand-logo {
+                max-width: 250px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>Login</h2>
+    <div class="login-shell">
+        <div class="card">
+            <div class="brand">
+                <img src="{{ url_for('static', filename='img/swi-logo.png') }}" alt="Steven Willand" class="brand-logo">
+                <div class="eyebrow">Dealer Portal</div>
+                <h1>SWI Dealer Order Upload</h1>
+                <p class="subtitle">
+                    Sign in to upload dealer order files and review parsed order details.
+                </p>
+            </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash {{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
 
-        <form method="POST" action="{{ url_for('login') }}">
-            <input type="text" name="username" placeholder="Username" required />
-            <input type="password" name="password" placeholder="Password" required />
-            <button type="submit">Log In</button>
-        </form>
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="form-group">
+                    <label class="label" for="username">Username</label>
+                    <input id="username" type="text" name="username" placeholder="Enter your username" required />
+                </div>
+
+                <div class="form-group">
+                    <label class="label" for="password">Password</label>
+                    <input id="password" type="password" name="password" placeholder="Enter your password" required />
+                </div>
+
+                <button class="login-btn" type="submit">Log In</button>
+            </form>
+
+            <div class="footer-note">
+                Authorized access only.
+            </div>
+        </div>
     </div>
 </body>
 </html>
