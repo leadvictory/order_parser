@@ -13,7 +13,42 @@ from email_utils import (
 )
 from parser_utils import extract_sku_quantity_pairs, extract_order_number, extract_shipping_fields
 from order_service import save_login_json, upload_saved_order
+import os
+from parser import extract_po_data
+from pdf_parser import extract_order_details
 
+def parse_attachment_data(file_path):
+    """
+    Use existing parsers based on file extension.
+    """
+    ext = os.path.splitext(file_path)[1].lower()
+
+    if ext in {".xls", ".xlsx", ".xlsm"}:
+        return extract_po_data(file_path)
+
+    if ext == ".pdf":
+        return extract_order_details(file_path)
+
+    return None
+
+
+def merge_order_data(body_data, attachment_data):
+    """
+    Prefer attachment data when present, otherwise keep body data.
+    """
+    if not attachment_data:
+        return body_data
+
+    return {
+        "order_number": attachment_data.get("order_number") or body_data.get("order_number") or "By email",
+        "customer_name": attachment_data.get("customer_name") or body_data.get("customer_name") or "",
+        "address1": attachment_data.get("address1") or body_data.get("address1"),
+        "city": attachment_data.get("city") or body_data.get("city"),
+        "state": attachment_data.get("state") or body_data.get("state"),
+        "zip": attachment_data.get("zip") or body_data.get("zip"),
+        "country": attachment_data.get("country") or body_data.get("country") or "United States",
+        "order_lines": attachment_data.get("order_lines") or body_data.get("order_lines") or [],
+    }
 
 def process_message(mail, uid):
     msg = fetch_message(mail, uid)
@@ -30,51 +65,95 @@ def process_message(mail, uid):
     print(f"Subject: {subject}")
 
     login_id = extract_login_id(subject, body)
-    order_number = extract_order_number(body)
-    shipping = extract_shipping_fields(body)
-
-    print(f"Extracted order_number: {order_number}")
-    print(f"Extracted address1: {shipping['address1']}")
-    print(f"Extracted city: {shipping['city']}")
-    print(f"Extracted state: {shipping['state']}")
-    print(f"Extracted zip: {shipping['zip']}")
-    items = extract_sku_quantity_pairs(body)
     password = find_password_for_login(login_id)
 
+    # Parse from email body first
+    order_number = extract_order_number(body)
+    shipping = extract_shipping_fields(body)
+    body_items = extract_sku_quantity_pairs(body)
+
+    body_data = {
+        "order_number": order_number or "By email",
+        "customer_name": "",
+        "address1": shipping["address1"],
+        "city": shipping["city"],
+        "state": shipping["state"],
+        "zip": shipping["zip"],
+        "country": "United States",
+        "order_lines": body_items,
+    }
+
     print(f"Extracted login_id: {login_id}")
-    print(f"Extracted items: {len(items)}")
+    print(f"Body order_number: {body_data['order_number']}")
+    print(f"Body address1: {body_data['address1']}")
+    print(f"Body city: {body_data['city']}")
+    print(f"Body state: {body_data['state']}")
+    print(f"Body zip: {body_data['zip']}")
+    print(f"Body items: {len(body_items)}")
     print(f"Password found: {'YES' if password else 'NO'}")
 
+    # Download attachments and try to parse them
+    saved_attachments = download_attachments_from_message(mail, uid)
+    attachment_data = None
+
+    if saved_attachments:
+        print(f"Downloaded {len(saved_attachments)} attachment(s).")
+
+        for full_path in saved_attachments:
+            try:
+                parsed = parse_attachment_data(full_path)
+                if parsed:
+                    print(f"Attachment parsed successfully: {full_path}")
+                    print(f"Attachment order_number: {parsed.get('order_number')}")
+                    print(f"Attachment items: {len(parsed.get('order_lines', []))}")
+
+                    # Prefer first attachment with usable order lines
+                    if parsed.get("order_lines"):
+                        attachment_data = parsed
+                        break
+            except Exception as e:
+                print(f"Attachment parse failed for {full_path}: {e}")
+    else:
+        print("No matching attachments found.")
+
+    final_data = merge_order_data(body_data, attachment_data)
+
+    print(f"Final order_number: {final_data['order_number']}")
+    print(f"Final address1: {final_data['address1']}")
+    print(f"Final city: {final_data['city']}")
+    print(f"Final state: {final_data['state']}")
+    print(f"Final zip: {final_data['zip']}")
+    print(f"Final items: {len(final_data['order_lines'])}")
+    # time.sleep(1000)
     if not login_id:
         reason = "Login ID not found in subject or body."
         print(reason)
-        send_reply_email(msg, False, reason, login_id=login_id, items=items)
         return True
 
-    if not items:
-        reason = "No SKU/quantity pairs were found in the email body."
+    if not final_data["order_lines"]:
+        reason = "No SKU/quantity pairs were found in the email body or attachments."
         print(reason)
-        send_reply_email(msg, False, reason, login_id=login_id, items=items)
+        send_reply_email(msg, False, reason, login_id=login_id, items=[])
         return True
 
     if not password:
         reason = f"Password not found in Users.csv for login ID '{login_id}'."
         print(reason)
-        send_reply_email(msg, False, reason, login_id=login_id, items=items)
+        send_reply_email(msg, False, reason, login_id=login_id, items=final_data["order_lines"])
         return True
 
     output_path = save_login_json(
         login_id=login_id,
         password=password,
-        order_number=order_number,
-        sku_quantity_pairs=items,
+        order_number=final_data["order_number"],
+        sku_quantity_pairs=final_data["order_lines"],
         subject=subject,
         from_addr=from_addr,
         email_uid=uid,
-        address1=shipping["address1"],
-        city=shipping["city"],
-        state=shipping["state"],
-        zip_code=shipping["zip"],
+        address1=final_data["address1"],
+        city=final_data["city"],
+        state=final_data["state"],
+        zip_code=final_data["zip"],
     )
     print(f"Saved parsed JSON: {output_path}")
 
@@ -87,17 +166,10 @@ def process_message(mail, uid):
         success=upload_ok,
         reason=upload_reason,
         login_id=login_id,
-        items=items,
+        items=final_data["order_lines"],
     )
 
-    saved_attachments = download_attachments_from_message(mail, uid)
-    if saved_attachments:
-        print(f"Downloaded {len(saved_attachments)} attachment(s).")
-    else:
-        print("No matching attachments found.")
-
     return True
-
 
 def main():
     SAVE_DIR.mkdir(parents=True, exist_ok=True)

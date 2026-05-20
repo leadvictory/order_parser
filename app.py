@@ -39,6 +39,8 @@ def save_extracted_data_to_pending(original_filename: str, extracted_data, usern
     return output_path
 
 app = Flask(__name__)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.secret_key = "jin120313@Q"
 
 # File that stores login users
@@ -196,4 +198,4 @@ def dashboard():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=80)
+    app.run(debug=True, host="0.0.0.0", port=5000)

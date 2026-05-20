@@ -21,7 +21,8 @@ def connect_imap():
 
 def fetch_unread_message_uids(mail):
     mail.select("INBOX")
-    search_criteria = f'(UNSEEN FROM "{FILTER_FROM_EMAIL}")'
+    # search_criteria = f'(UNSEEN FROM "{FILTER_FROM_EMAIL}")'
+    search_criteria = "(UNSEEN)"
     status, data = mail.uid("search", None, search_criteria)
 
     if status != "OK":

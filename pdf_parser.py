@@ -1,115 +1,274 @@
+import os
+import json
 import re
-from typing import Dict, List, Any
-import pdfplumber
+from typing import Any, Dict, List
+
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 
 
-def extract_text_from_pdf(pdf_path: str) -> str:
-    full_text = []
-
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text() or ""
-            full_text.append(text)
-
-    return "\n".join(full_text)
+load_dotenv()
 
 
-def parse_city_state_zip(line: str):
-    match = re.search(r"(.+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)", line)
-    if match:
-        return match.group(1).strip(), match.group(2).strip(), match.group(3).strip()
-    return "", "", ""
+EXPECTED_KEYS = {
+    "order_number": "",
+    "customer_name": "",
+    "address1": "",
+    "city": "",
+    "state": "",
+    "zip": "",
+    "country": "United States",
+    "order_lines": [],
+}
 
 
-def parse_order_lines(raw_text: str) -> List[Dict[str, Any]]:
-    items = []
+def clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
 
-    pattern = re.compile(
-        r"(?m)^(\d+)\s+[A-Z0-9]+\s+([A-Z0-9\-]+)\s+.+?\s+\$[\d,]+\.\d{2}\s+\$[\d,]+\.\d{2}$"
-    )
 
-    for match in pattern.finditer(raw_text):
-        items.append({
-            "quantity": int(match.group(1)),
-            "sku": match.group(2).strip()
+def to_int_string(value: Any) -> str:
+    if value is None:
+        return ""
+
+    text = clean_text(value)
+
+    try:
+        number = float(text)
+        if number.is_integer():
+            return str(int(number))
+        return str(number)
+    except Exception:
+        return text
+
+
+def extract_json_from_text(text: str) -> Dict[str, Any]:
+    """
+    Fallback parser in case Gemini wraps JSON in ```json ... ```.
+    """
+    text = text.strip()
+
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"```$", "", text).strip()
+
+    return json.loads(text)
+
+
+def normalize_result(data: Dict[str, Any]) -> Dict[str, Any]:
+    result = EXPECTED_KEYS.copy()
+
+    for key in result:
+        if key in data:
+            result[key] = data[key]
+
+    for key in [
+        "order_number",
+        "customer_name",
+        "address1",
+        "city",
+        "state",
+        "zip",
+        "country",
+    ]:
+        result[key] = clean_text(result.get(key, ""))
+
+    if not result["country"]:
+        result["country"] = "United States"
+
+    cleaned_lines: List[Dict[str, str]] = []
+
+    for item in result.get("order_lines", []):
+        if not isinstance(item, dict):
+            continue
+
+        quantity = to_int_string(item.get("quantity", ""))
+        sku = clean_text(item.get("sku", ""))
+
+        if not quantity or not sku:
+            continue
+
+        cleaned_lines.append({
+            "quantity": quantity,
+            "sku": sku
         })
 
-    return items
+    result["order_lines"] = cleaned_lines
+
+    return result
 
 
-def extract_customer_fields(raw_text: str):
+def extract_order_details(file_path: str, model: str = "gemini-2.5-flash") -> Dict[str, Any]:
     """
-    Handles this actual pattern:
+    Extract PO/order details from a PDF using Google Gemini API.
 
-    Supplier Ship To
-    WILLAND, STEVEN # 247250 LIFFCO POWER EQUIPMENT, INC
-    1835 HIGHLAND AVE
-    NEW HYDE PARK, NY 11040
-    PHONE #: ...
+    Returns same JSON format as Excel parser:
 
-    We only want:
-    LIFFCO POWER EQUIPMENT, INC
-    1835 HIGHLAND AVE
-    NEW HYDE PARK, NY 11040
-    """
-    customer_name = ""
-    address1 = ""
-    city = ""
-    state = ""
-    zip_code = ""
-
-    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
-
-    for i, line in enumerate(lines):
-        if line.upper() == "SUPPLIER SHIP TO":
-            if i + 1 < len(lines):
-                merged_line = lines[i + 1]
-
-                # Split supplier and customer from same line
-                # Example:
-                # WILLAND, STEVEN # 247250 LIFFCO POWER EQUIPMENT, INC
-                m = re.search(r"#\s*\d+\s+(.+)$", merged_line)
-                if m:
-                    customer_name = m.group(1).strip()
-                else:
-                    customer_name = merged_line.strip()
-
-            if i + 2 < len(lines):
-                address1 = lines[i + 2]
-
-            if i + 3 < len(lines):
-                city, state, zip_code = parse_city_state_zip(lines[i + 3])
-
-            break
-
-    return customer_name, address1, city, state, zip_code
-
-
-def extract_order_details(pdf_path: str) -> Dict[str, Any]:
-    raw_text = extract_text_from_pdf(pdf_path)
-
-    # PO number
-    po_match = re.search(r"P\.O\.\s*#:\s*(\d+)", raw_text, re.IGNORECASE)
-    po_number = po_match.group(1).strip() if po_match else ""
-
-    customer_name, address1, city, state, zip_code = extract_customer_fields(raw_text)
-    items = parse_order_lines(raw_text)
-
-    return {
-        "order_number": po_number,
-        "customer_name": customer_name,
-        "address1": address1,
-        "city": city,
-        "state": state,
-        "zip": zip_code,
-        "country": "United States",
-        "order_lines": items,
+    {
+      "order_number": "",
+      "customer_name": "",
+      "address1": "",
+      "city": "",
+      "state": "",
+      "zip": "",
+      "country": "United States",
+      "order_lines": [
+        {
+          "quantity": "",
+          "sku": ""
+        }
+      ]
     }
+    """
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("Missing GEMINI_API_KEY in .env file")
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"PDF file not found: {file_path}")
+
+    client = genai.Client(api_key=api_key)
+
+    uploaded_file = client.files.upload(file=file_path)
+
+    prompt = """
+    You are an order / purchase order PDF parser.
+
+    Extract the order details from this PDF and return ONLY valid JSON.
+
+    Return exactly this JSON shape:
+
+    {
+    "order_number": "",
+    "customer_name": "",
+    "address1": "",
+    "city": "",
+    "state": "",
+    "zip": "",
+    "country": "United States",
+    "order_lines": [
+        {
+        "quantity": "",
+        "sku": ""
+        }
+    ]
+    }
+
+    General rules:
+    - Return ONLY valid JSON.
+    - Do not add explanations.
+    - Do not wrap JSON in markdown.
+    - Empty fields should be "".
+    - country: always "United States" unless another country is explicitly shown.
+
+    Order number rules:
+    - order_number: purchase order number / PO number / order number.
+    - For labels like "PO # : 12128-00 ()", return only "12128-00".
+    - Remove empty parentheses, extra spaces, and punctuation around the PO number.
+
+    Customer/address rules:
+    - Prefer the "Ship To" block when it exists.
+    - If there is no "Ship To" block, use the customer/company address block at the top-left or top of the PDF.
+    - The customer/company address block is often the first block before fields like "Pay To", "Vendor", "PO #", "PO Type", "Date Created", or item tables.
+    - customer_name should be the first company/name line in that address block.
+    - address1 should be the first street address line in that address block.
+    - city, state, zip should be parsed from the city/state/zip line in that address block.
+    - Do not use the vendor/pay-to name as customer_name.
+    - Do not use "Redmax", "RedMax", "Steven Willand", or other vendor/pay-to names as customer_name unless they are clearly inside the Ship To block.
+    - Ignore phone numbers, fax numbers, emails, account numbers, PO status, dates, totals, and payment info when extracting address.
+    - If both vendor and customer blocks exist, use Ship To/customer delivery address, not Pay To/vendor address.
+
+    Order line rules:
+    - Extract each ordered item from the item table.
+    - quantity: item quantity as string, no decimals if whole number. Example: "8", not "8.00".
+    - sku: extract only the clean model / part number.
+    - For tables with columns like "Model (VndCode) Description Order Recv Cost Ext Cost", use the Model value as sku and the Order quantity as quantity.
+    - If a row contains both Model and VndCode, prefer the Model value as sku unless Product ID is clearly the required SKU.
+    - sku must NOT include brand/vendor prefixes such as "RedMax", "SWI", "RedMax/SWI", "RedMax/", "SWI.", or "RedMax/SWI.".
+    - Do not include customer reference words like "Devine GC", "Ichabod Crane", or other customer/job names in sku.
+    - Do not include freight, shipping charge, discount, subtotal, tax, total, amount paid, current balance, comments, or service-only charge lines as order items.
+    """
+    response = client.models.generate_content(
+        model=model,
+        contents=[prompt, uploaded_file],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "order_number": {"type": "string"},
+                    "customer_name": {"type": "string"},
+                    "address1": {"type": "string"},
+                    "city": {"type": "string"},
+                    "state": {"type": "string"},
+                    "zip": {"type": "string"},
+                    "country": {"type": "string"},
+                    "order_lines": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "quantity": {"type": "string"},
+                                "sku": {"type": "string"}
+                            },
+                            "required": ["quantity", "sku"]
+                        }
+                    }
+                },
+                "required": [
+                    "order_number",
+                    "customer_name",
+                    "address1",
+                    "city",
+                    "state",
+                    "zip",
+                    "country",
+                    "order_lines"
+                ]
+            }
+        )
+    )
+
+    raw_text = response.text or ""
+
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError:
+        data = extract_json_from_text(raw_text)
+
+    return normalize_result(data)
 
 
 if __name__ == "__main__":
-    pdf_path = "PurchaseOrder_2026-03-09.pdf"
-    result = extract_order_details(pdf_path)
+    import os
+    import json
 
-    from pprint import pprint
-    pprint(result)
+    uploads_dir = "uploads"
+    output_dir = "uploads"
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    for filename in os.listdir(uploads_dir):
+        if not filename.lower().endswith(".pdf"):
+            continue
+
+        file_path = os.path.join(uploads_dir, filename)
+        base_name = os.path.splitext(filename)[0]
+        output_path = os.path.join(output_dir, f"{base_name}.json")
+
+        print(f"Processing: {file_path}")
+
+        try:
+            data = extract_order_details(file_path)
+
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+
+            print(f"Saved: {output_path}")
+
+        except Exception as e:
+            print(f"Failed: {file_path}")
+            print(f"Error: {e}")
