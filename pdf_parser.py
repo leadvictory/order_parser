@@ -6,6 +6,8 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+import time
+import random
 
 
 load_dotenv()
@@ -22,6 +24,45 @@ EXPECTED_KEYS = {
     "order_lines": [],
 }
 
+def run_with_retry(func, max_attempts=3, base_delay=3):
+    """
+    Retry Gemini API calls when temporary errors happen, especially:
+    503 UNAVAILABLE / high demand.
+    """
+
+    last_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return func()
+
+        except Exception as e:
+            last_error = e
+            error_text = str(e)
+
+            retryable = (
+                "503" in error_text
+                or "UNAVAILABLE" in error_text
+                or "high demand" in error_text.lower()
+                or "temporarily unavailable" in error_text.lower()
+                or "429" in error_text
+                or "RESOURCE_EXHAUSTED" in error_text
+            )
+
+            if not retryable or attempt == max_attempts:
+                raise
+
+            sleep_seconds = base_delay * attempt + random.uniform(0, 2)
+
+            print(
+                f"Gemini temporary error. "
+                f"Attempt {attempt}/{max_attempts} failed. "
+                f"Retrying in {sleep_seconds:.1f}s..."
+            )
+
+            time.sleep(sleep_seconds)
+
+    raise last_error
 
 def clean_text(value: Any) -> str:
     if value is None:
@@ -132,7 +173,10 @@ def extract_order_details(file_path: str, model: str = "gemini-2.5-flash") -> Di
 
     client = genai.Client(api_key=api_key)
 
-    uploaded_file = client.files.upload(file=file_path)
+    uploaded_file = run_with_retry(
+        lambda: client.files.upload(file=file_path),
+        max_attempts=3
+    )
 
     prompt = """
     You are an order / purchase order PDF parser.
@@ -183,55 +227,94 @@ def extract_order_details(file_path: str, model: str = "gemini-2.5-flash") -> Di
 
     Order line rules:
     - Extract each ordered item from the item table.
-    - quantity: item quantity as string, no decimals if whole number. Example: "8", not "8.00".
-    - sku: extract only the clean model / part number.
-    - For tables with columns like "Model (VndCode) Description Order Recv Cost Ext Cost", use the Model value as sku and the Order quantity as quantity.
-    - If a row contains both Model and VndCode, prefer the Model value as sku unless Product ID is clearly the required SKU.
-    - sku must NOT include brand/vendor prefixes such as "RedMax", "SWI", "RedMax/SWI", "RedMax/", "SWI.", or "RedMax/SWI.".
-    - Do not include customer reference words like "Devine GC", "Ichabod Crane", or other customer/job names in sku.
-    - Do not include freight, shipping charge, discount, subtotal, tax, total, amount paid, current balance, comments, or service-only charge lines as order items.
-    """
-    response = client.models.generate_content(
-        model=model,
-        contents=[prompt, uploaded_file],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema={
-                "type": "object",
-                "properties": {
-                    "order_number": {"type": "string"},
-                    "customer_name": {"type": "string"},
-                    "address1": {"type": "string"},
-                    "city": {"type": "string"},
-                    "state": {"type": "string"},
-                    "zip": {"type": "string"},
-                    "country": {"type": "string"},
-                    "order_lines": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "quantity": {"type": "string"},
-                                "sku": {"type": "string"}
-                            },
-                            "required": ["quantity", "sku"]
-                        }
-                    }
-                },
-                "required": [
-                    "order_number",
-                    "customer_name",
-                    "address1",
-                    "city",
-                    "state",
-                    "zip",
-                    "country",
-                    "order_lines"
-                ]
-            }
-        )
-    )
+    - quantity: item quantity as string, no decimals if whole number. Example: "1", not "1.00".
+    - If no explicit quantity column is shown, but each item appears as a separate ordered line, use "1".
 
+    SKU extraction rules:
+    - sku must be the actual model / part number only.
+    - sku must NOT include brand names, manufacturer names, vendor prefixes, or descriptive words.
+    - Remove prefixes such as:
+    - "RedMax"
+    - "RedMax/"
+    - "SWI"
+    - "SWI."
+    - "RedMax/SWI"
+    - "RedMax/SWI."
+    - "Little Wonder"
+    - "Little Wonder/"
+    - If the Model column contains a value like:
+    "Little Wonder/5511-02-01"
+    return only:
+    "5511-02-01"
+    - If the Model column contains a value like:
+    "RedMax/SWI.EBZ5150-RH"
+    return only:
+    "EBZ5150-RH"
+    - If the item text contains a value like:
+    "RedMax/ EBZ8560"
+    return only:
+    "EBZ8560"
+    - If the item text contains a value like:
+    "RedMax/ BCZ265TS"
+    return only:
+    "BCZ265TS"
+
+    Model-column priority:
+    - For purchase order tables with columns like:
+    "Order Ref No | Model | Description | Total Cost"
+    use the value under the Model column as the sku.
+    - If the Model value contains a brand prefix and a slash, extract only the part after the slash.
+    - If the Model value contains a brand/vendor prefix and a dot, extract only the part after the dot.
+    - Do not use the Description column as sku unless the Model column is empty.
+    - Do not include customer reference words like "Devine GC", "Ichabod Crane", "Syracuse Parks", or other job/customer names in sku.
+
+    Non-item exclusions:
+    - Do not include freight, hose kits, accessories, subtotal, tax, total, comments, payment info, or service-only charge lines as order items unless they are clearly requested as ordered products.
+    - Do not include rows that only contain cost/total values.
+    """
+    response = run_with_retry(
+        lambda: client.models.generate_content(
+            model=model,
+            contents=[prompt, uploaded_file],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema={
+                    "type": "object",
+                    "properties": {
+                        "order_number": {"type": "string"},
+                        "customer_name": {"type": "string"},
+                        "address1": {"type": "string"},
+                        "city": {"type": "string"},
+                        "state": {"type": "string"},
+                        "zip": {"type": "string"},
+                        "country": {"type": "string"},
+                        "order_lines": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "quantity": {"type": "string"},
+                                    "sku": {"type": "string"}
+                                },
+                                "required": ["quantity", "sku"]
+                            }
+                        }
+                    },
+                    "required": [
+                        "order_number",
+                        "customer_name",
+                        "address1",
+                        "city",
+                        "state",
+                        "zip",
+                        "country",
+                        "order_lines"
+                    ]
+                }
+            )
+        ),
+        max_attempts=7
+    )
     raw_text = response.text or ""
 
     try:

@@ -96,17 +96,31 @@ def extract_email_body(msg):
 def extract_login_id(subject, body=""):
     candidates = [subject or "", body or ""]
 
+    # Existing login patterns
     patterns = [
         r"\bSW\s+Login\s+([A-Za-z0-9_-]+)\b",
         r"\bLogin\s+([A-Za-z0-9_-]+)\b",
         r"\b([0-9]{4,}[A-Za-z]{2,})\b",
     ]
 
+    # First: try original extraction logic
     for text in candidates:
         for pattern in patterns:
             match = re.search(pattern, text, flags=re.IGNORECASE)
             if match:
                 return match.group(1).strip()
+
+    # Fallback: extract Account ID and convert to SWI login
+    # Example:
+    # Account: 209110  -> SWI209110
+    account_match = re.search(
+        r"(?im)^\s*Account\s*:\s*([A-Za-z0-9_-]+)\s*$",
+        body or ""
+    )
+
+    if account_match:
+        account_id = account_match.group(1).strip()
+        return f"{account_id}swi"
 
     return None
 

@@ -23,9 +23,88 @@ def extract_order_number(body):
     for pattern in patterns:
         match = re.search(pattern, body, flags=re.IGNORECASE)
         if match:
+
             return match.group(1).strip()
 
     return None
+
+def extract_terms(body: str):
+    """
+    Extract:
+    Terms: Floor
+    """
+    match = re.search(
+        r"(?im)^\s*Terms\s*:\s*(.+?)\s*$",
+        body or ""
+    )
+
+    if match:
+        return match.group(1).strip()
+
+    return ""
+
+
+def extract_freight(body: str):
+    """
+    Extract:
+    Freight: FREE
+    """
+    match = re.search(
+        r"(?im)^\s*Freight\s*:\s*(.+?)\s*$",
+        body or ""
+    )
+
+    if match:
+        return match.group(1).strip()
+
+    return ""
+
+def extract_type(body: str):
+    """
+    Extract:
+    Type: On Account
+    """
+    match = re.search(
+        r"(?im)^\s*Type\s*:\s*(.+?)\s*$",
+        body or ""
+    )
+
+    if match:
+        return match.group(1).strip()
+
+    return ""
+
+
+def extract_ship_to(body: str):
+    """
+    Extract:
+    ShipTo: 99999
+    """
+    match = re.search(
+        r"(?im)^\s*ShipTo\s*:\s*(.+?)\s*$",
+        body or ""
+    )
+
+    if match:
+        return match.group(1).strip()
+
+    return ""
+
+
+def extract_ship_via(body: str):
+    """
+    Extract:
+    ShipVia: UPS
+    """
+    match = re.search(
+        r"(?im)^\s*ShipVia\s*:\s*(.+?)\s*$",
+        body or ""
+    )
+
+    if match:
+        return match.group(1).strip()
+
+    return ""
 
 def extract_shipping_fields(body):
     """
@@ -78,11 +157,19 @@ def extract_sku_quantity_pairs(body):
 
     2) Vertical:
        Sku
-       quantity
+       Quantity
        3019-20PS
        1
        3004-20NLP2
        3
+
+    3) Horizontal with QTY:
+       SKU   QTY
+       GCWR2 2
+
+    4) EA format:
+       72 ea. EBZ8560
+       2 ea. GCWR2 – Grass Catchers
     """
     pairs = []
     lines = [line.strip() for line in body.splitlines() if line.strip()]
@@ -90,28 +177,38 @@ def extract_sku_quantity_pairs(body):
 
     start_index = None
 
+    # Find SKU / Quantity or SKU / QTY header
     for i in range(len(lines) - 1):
-        if lines[i].lower() == "sku" and lines[i + 1].lower() == "quantity":
+        current = lines[i].lower()
+        next_line = lines[i + 1].lower()
+
+        if current == "sku" and next_line in {"quantity", "qty"}:
             start_index = i + 2
             break
 
-        if re.search(r"\bsku\b", lines[i], re.IGNORECASE) and re.search(r"\bquantity\b", lines[i], re.IGNORECASE):
+        if (
+            re.search(r"\bsku\b", lines[i], re.IGNORECASE)
+            and re.search(r"\b(quantity|qty)\b", lines[i], re.IGNORECASE)
+        ):
             start_index = i + 1
             break
 
-    if start_index is None:
-        return pairs
+    # Case 1/2/3: SKU Quantity / SKU QTY table
+    if start_index is not None:
+        remaining = lines[start_index:]
 
-    remaining = lines[start_index:]
-
-    if remaining:
+        # Vertical format
         vertical_pairs = []
         i = 0
+
         while i + 1 < len(remaining):
             sku = remaining[i].strip()
             qty_line = remaining[i + 1].strip()
 
-            if re.fullmatch(r"[A-Z0-9\-]+", sku, re.IGNORECASE) and re.fullmatch(r"\d+", qty_line):
+            if (
+                re.fullmatch(r"[A-Z0-9\-]+", sku, re.IGNORECASE)
+                and re.fullmatch(r"\d+", qty_line)
+            ):
                 vertical_pairs.append({
                     "sku": sku.upper(),
                     "quantity": int(qty_line)
@@ -123,12 +220,38 @@ def extract_sku_quantity_pairs(body):
         if vertical_pairs:
             return vertical_pairs
 
-    for line in remaining:
-        match = re.match(r"^([A-Z0-9\-]+)\s+(\d+)$", line, re.IGNORECASE)
+        # Horizontal format
+        for line in remaining:
+            match = re.match(r"^([A-Z0-9\-]+)\s+(\d+)$", line, re.IGNORECASE)
+            if match:
+                pairs.append({
+                    "sku": match.group(1).upper(),
+                    "quantity": int(match.group(2))
+                })
+
+        if pairs:
+            return pairs
+
+    # Case 4: "72 ea. EBZ8560" or "2 ea. GCWR2 – Grass Catchers"
+    ea_pairs = []
+
+    for line in lines:
+        match = re.match(
+            r"^\s*(\d+)\s+ea\.?\s+([A-Z0-9\-]+)",
+            line,
+            re.IGNORECASE
+        )
+
         if match:
-            pairs.append({
-                "sku": match.group(1).upper(),
-                "quantity": int(match.group(2))
+            quantity = int(match.group(1))
+            sku = match.group(2).strip().upper()
+
+            ea_pairs.append({
+                "sku": sku,
+                "quantity": quantity
             })
 
-    return pairs
+    if ea_pairs:
+        return ea_pairs
+
+    return []

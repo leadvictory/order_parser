@@ -11,7 +11,16 @@ from email_utils import (
     find_password_for_login,
     send_reply_email,
 )
-from parser_utils import extract_sku_quantity_pairs, extract_order_number, extract_shipping_fields
+from parser_utils import (
+    extract_sku_quantity_pairs,
+    extract_order_number,
+    extract_shipping_fields,
+    extract_terms,
+    extract_freight,
+    extract_type,
+    extract_ship_to,
+    extract_ship_via,
+)
 from order_service import save_login_json, upload_saved_order
 import os
 from parser import extract_po_data
@@ -69,11 +78,22 @@ def process_message(mail, uid):
 
     # Parse from email body first
     order_number = extract_order_number(body)
+    terms = extract_terms(body)
+    freight = extract_freight(body)
+    order_type = extract_type(body)
+    ship_to = extract_ship_to(body)
+    ship_via = extract_ship_via(body)
     shipping = extract_shipping_fields(body)
     body_items = extract_sku_quantity_pairs(body)
 
     body_data = {
         "order_number": order_number or "By email",
+        "account_id": login_id,
+        "terms": terms,
+        "freight": freight,
+        "type": order_type,
+        "ship_to": ship_to,
+        "ship_via": ship_via,
         "customer_name": "",
         "address1": shipping["address1"],
         "city": shipping["city"],
@@ -85,6 +105,11 @@ def process_message(mail, uid):
 
     print(f"Extracted login_id: {login_id}")
     print(f"Body order_number: {body_data['order_number']}")
+    print(f"Terms: {terms}")
+    print(f"Type: {order_type}")
+    print(f"Freight: {freight}")
+    print(f"ShipTo: {ship_to}")
+    print(f"ShipVia: {ship_via}")
     print(f"Body address1: {body_data['address1']}")
     print(f"Body city: {body_data['city']}")
     print(f"Body state: {body_data['state']}")
@@ -124,7 +149,7 @@ def process_message(mail, uid):
     print(f"Final state: {final_data['state']}")
     print(f"Final zip: {final_data['zip']}")
     print(f"Final items: {len(final_data['order_lines'])}")
-    # time.sleep(1000)
+    time.sleep(1000)
     if not login_id:
         reason = "Login ID not found in subject or body."
         print(reason)
