@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename
 
 from parser import extract_po_data as extract_excel_order_details
 from pdf_parser import extract_order_details as extract_pdf_order_details
-
+from order_service import upload_saved_order
 import os
 import csv
 import re
@@ -143,7 +143,14 @@ def login():
             flash(f"Login error: {str(e)}", "danger")
             return redirect(url_for("login"))
 
-    return render_template("login.html")
+    username = request.args.get("userid", "")
+    password = request.args.get("userpass", "")
+
+    return render_template(
+        "login.html",
+        username=username,
+        password=password
+    )
 
 
 @app.route("/logout")
@@ -183,7 +190,9 @@ def dashboard():
                 session.get("username", ""),
                 session.get("password", "")
             )
-
+            upload_ok, upload_reason = upload_saved_order(saved_path)
+            print(f"Upload status: {'SUCCESS' if upload_ok else 'FAILED'}")
+            print(f"Upload reason: {upload_reason}")
             flash("File uploaded and parsed successfully.", "success")
             # flash(f"Saved to pending: {saved_path}", "success")
         except Exception as e:

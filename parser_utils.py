@@ -29,19 +29,12 @@ def extract_order_number(body):
     return None
 
 def extract_terms(body: str):
-    """
-    Extract:
-    Terms: Floor
-    """
     match = re.search(
-        r"(?im)^\s*Terms\s*:\s*(.+?)\s*$",
+        r"(?im)^\s*(?:Terms|Payment\s+Terms)\s*:\s*(.+?)\s*$",
         body or ""
     )
 
-    if match:
-        return match.group(1).strip()
-
-    return ""
+    return match.group(1).strip() if match else ""
 
 
 def extract_freight(body: str):
@@ -76,35 +69,29 @@ def extract_type(body: str):
 
 
 def extract_ship_to(body: str):
-    """
-    Extract:
-    ShipTo: 99999
-    """
     match = re.search(
-        r"(?im)^\s*ShipTo\s*:\s*(.+?)\s*$",
+        r"(?im)^\s*(?:ShipTo|Shipto\s+Id)\s*:?\s*(.+?)\s*$",
         body or ""
     )
 
-    if match:
-        return match.group(1).strip()
-
-    return ""
+    return match.group(1).strip() if match else ""
 
 
 def extract_ship_via(body: str):
-    """
-    Extract:
-    ShipVia: UPS
-    """
     match = re.search(
-        r"(?im)^\s*ShipVia\s*:\s*(.+?)\s*$",
+        r"(?im)^\s*ShipVia\s*:?\s*(.+?)\s*$",
         body or ""
     )
 
     if match:
         return match.group(1).strip()
 
-    return ""
+    match = re.search(
+        r"(?im)^\s*Shipvia\s+(.+?)\s*$",
+        body or ""
+    )
+
+    return match.group(1).strip() if match else ""
 
 def extract_shipping_fields(body):
     """

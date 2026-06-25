@@ -133,9 +133,27 @@ def add_items_batch(sb, batch):
 
     sb.sleep(1)
 
+def select_by_value_or_text(sb, selector, target):
+    if not target:
+        return False
 
-from urllib.parse import urlparse, parse_qs
+    target = target.strip().lower()
 
+    select_el = sb.find_element(selector)
+    options = select_el.find_elements("tag name", "option")
+
+    for option in options:
+        value = (option.get_attribute("value") or "").strip()
+        text = (option.text or "").strip()
+
+        if (
+            value.lower() == target or
+            text.lower() == target
+        ):
+            sb.select_option_by_value(selector, value)
+            return True
+
+    return False
 def checkout_order(sb, order):
     sb.open("https://www.swiedi.com/willand/webshop.php?mode=Checkout")
     sb.sleep(3)
@@ -147,7 +165,82 @@ def checkout_order(sb, order):
     city = (order.get("city") or "").strip()
     state = (order.get("state") or "").strip()
     zip_code = (order.get("zip") or "").strip()
+    terms = (order.get("terms") or "").strip()
+    freight = (order.get("freight") or "").strip()
+    order_type = (order.get("order_type") or "").strip()
+    ship_to = (order.get("ship_to") or "").strip()
+    ship_via = (order.get("ship_via") or "").strip()
 
+    if terms:
+        found = select_by_value_or_text(
+            sb,
+            'select[name="txtTerms_cd"]',
+            terms
+        )
+
+        if not found:
+            print(f"Payment terms To not found: {terms}")
+        print("Payment terms updated")
+    # if freight:
+    #     sb.select_option_by_value('select[name="txtTerms_cd"]', freight) 
+    if order_type:
+        order_type = order_type.strip().lower()
+
+        select_el = sb.find_element('select[name="txtPayment"]')
+        options = select_el.find_elements("tag name", "option")
+
+        matched_value = None
+
+        for option in options:
+            value = option.get_attribute("value")
+
+            if value and value.strip().lower() == order_type:
+                matched_value = value
+                break
+
+        if matched_value:
+            sb.select_option_by_value(
+                'select[name="txtPayment"]',
+                matched_value
+            )
+    if ship_to:
+        found = select_by_value_or_text(
+            sb,
+            'select[name="txtShipto"]',
+            ship_to
+        )
+
+        if not found:
+            print(f"Ship To not found: {ship_to}")
+        print("ShipTo updated")
+    if ship_via:
+        ship_via = ship_via.strip().lower()
+
+        select_el = sb.find_element('select[name="txtShipVia"]')
+        options = select_el.find_elements("tag name", "option")
+
+        matched_value = None
+
+        for option in options:
+            value = (option.get_attribute("value") or "").strip()
+            text = (option.text or "").strip()
+
+            if (
+                value.lower() == ship_via or
+                text.lower() == ship_via
+            ):
+                matched_value = value
+                break
+
+        if matched_value:
+            sb.select_option_by_value(
+                'select[name="txtShipVia"]',
+                matched_value
+            )
+            print(f"Selected Ship Via: {matched_value}")
+        else:
+            print(f"Ship Via not found: {ship_via}")
+        print("ShipVia updated")
     if address1:
         sb.clear('input[name="txtShipAdr1"]')
         sb.type('input[name="txtShipAdr1"]', address1)
@@ -167,17 +260,17 @@ def checkout_order(sb, order):
     sb.click('input#btnAccept')
     sb.sleep(8)
 
-    current_url = sb.driver.current_url
-    print("Redirect URL:", current_url)
+    # current_url = sb.driver.current_url
+    # print("Redirect URL:", current_url)
 
-    parsed = urlparse(current_url)
-    params = parse_qs(parsed.query)
-    new_order_number = params.get("ordnum", [None])[0]
+    # parsed = urlparse(current_url)
+    # params = parse_qs(parsed.query)
+    # new_order_number = params.get("ordnum", [None])[0]
 
-    if not new_order_number:
-        raise Exception("Failed to extract new order number from Swiedi")
+    # if not new_order_number:
+    #     raise Exception("Failed to extract new order number from Swiedi")
 
-    return new_order_number
+    return True
 
 
 def upload_order(order_file, username, password):
@@ -206,13 +299,13 @@ def upload_order(order_file, username, password):
             print(f"Adding batch {batch_index}/{len(batches)} with {len(batch)} items")
             add_items_batch(sb, batch)
 
-        new_order_number = checkout_order(sb, order)
-        print(f"Swiedi order created: {new_order_number}")
+        result = checkout_order(sb, order)
+        print(f"Swiedi order create result: {result}")
 
-        old_order_number = order.get("order_id") or order.get("order_number")
-        save_order_mapping(old_order_number, new_order_number)
+        # old_order_number = order.get("order_id") or order.get("order_number")
+        # save_order_mapping(old_order_number, new_order_number)
 
-        print(f"Mapping saved: {old_order_number} -> {new_order_number}")
+        # print(f"Mapping saved: {old_order_number} -> {new_order_number}")
 
 
 def worker_loop():

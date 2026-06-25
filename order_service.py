@@ -9,6 +9,11 @@ def save_login_json(
     login_id,
     password,
     order_number,
+    terms, 
+    order_type,
+    freight,
+    ship_to,
+    ship_via,
     sku_quantity_pairs,
     subject,
     from_addr,
@@ -36,6 +41,11 @@ def save_login_json(
         "login_id": login_id,
         "password": password,
         "order_number": final_order_number,
+        "terms": terms,
+        "order_type": order_type,
+        "freight": freight,
+        "ship_to": ship_to,
+        "ship_via": ship_via,
         "address1": address1,
         "city": city,
         "state": state,
@@ -54,15 +64,16 @@ def save_login_json(
 
 def upload_saved_order(order_path: Path):
     try:
-        full_path = str(order_path.resolve())
-        username, password = extract_credentials_from_filename(full_path)
+        print(order_path)
+        # full_path = str(order_path.resolve())
+        username, password = extract_credentials_from_filename(order_path)
 
         if not username or not password:
-            return False, f"Could not extract username/password from filename: {full_path}"
+            return False, f"Could not extract username/password from filename: {order_path}"
 
-        print(f"Uploading order: {full_path}")
-        result = upload_order(full_path, username, password)
-        print(f"Upload completed: {full_path}")
+        print(f"Uploading order: {order_path}")
+        result = upload_order(order_path, username, password)
+        print(f"Upload completed: {order_path}")
 
         if result is None:
             return True, "Upload completed successfully."

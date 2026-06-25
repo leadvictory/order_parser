@@ -91,7 +91,7 @@ def process_message(mail, uid):
         "account_id": login_id,
         "terms": terms,
         "freight": freight,
-        "type": order_type,
+        "order_type": order_type,
         "ship_to": ship_to,
         "ship_via": ship_via,
         "customer_name": "",
@@ -149,7 +149,7 @@ def process_message(mail, uid):
     print(f"Final state: {final_data['state']}")
     print(f"Final zip: {final_data['zip']}")
     print(f"Final items: {len(final_data['order_lines'])}")
-    time.sleep(1000)
+    # time.sleep(1000)
     if not login_id:
         reason = "Login ID not found in subject or body."
         print(reason)
@@ -171,6 +171,11 @@ def process_message(mail, uid):
         login_id=login_id,
         password=password,
         order_number=final_data["order_number"],
+        terms = final_data["terms"],
+        order_type = final_data["order_type"],
+        freight = final_data["freight"],
+        ship_to = final_data["ship_to"],
+        ship_via = final_data["ship_via"],
         sku_quantity_pairs=final_data["order_lines"],
         subject=subject,
         from_addr=from_addr,
