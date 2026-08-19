@@ -166,24 +166,24 @@ def process_message(mail, uid):
         print(reason)
         send_reply_email(msg, False, reason, login_id=login_id, items=final_data["order_lines"])
         return True
-
+    print("here")
     output_path = save_login_json(
         login_id=login_id,
         password=password,
-        order_number=final_data["order_number"],
-        terms = final_data["terms"],
-        order_type = final_data["order_type"],
-        freight = final_data["freight"],
-        ship_to = final_data["ship_to"],
-        ship_via = final_data["ship_via"],
-        sku_quantity_pairs=final_data["order_lines"],
+        order_number=final_data.get("order_number"),
+        terms=final_data.get("terms", ""),
+        order_type=final_data.get("order_type", ""),
+        freight=final_data.get("freight", ""),
+        ship_to=final_data.get("ship_to", ""),
+        ship_via=final_data.get("ship_via", ""),
+        sku_quantity_pairs=final_data.get("order_lines", []),
         subject=subject,
         from_addr=from_addr,
         email_uid=uid,
-        address1=final_data["address1"],
-        city=final_data["city"],
-        state=final_data["state"],
-        zip_code=final_data["zip"],
+        address1=final_data.get("address1"),
+        city=final_data.get("city"),
+        state=final_data.get("state"),
+        zip_code=final_data.get("zip"),
     )
     print(f"Saved parsed JSON: {output_path}")
 

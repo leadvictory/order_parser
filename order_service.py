@@ -36,7 +36,7 @@ def save_login_json(
     final_order_number = order_number or "By email"
 
     output_path = OUTPUT_DIR / f"{login_id}___{safe_password}___time.json"
-
+    print(output_path)
     payload = {
         "login_id": login_id,
         "password": password,

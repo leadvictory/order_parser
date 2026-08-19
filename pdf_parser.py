@@ -220,6 +220,22 @@ def extract_order_details(file_path: str, model: str = "gemini-2.5-flash") -> Di
     - customer_name should be the first company/name line in that address block.
     - address1 should be the first street address line in that address block.
     - city, state, zip should be parsed from the city/state/zip line in that address block.
+    - Always return the state as its official USPS two-letter abbreviation.
+    - If the PDF contains the full state name, convert it to the USPS abbreviation.
+    - Examples:
+    - New Jersey → NJ
+    - New York → NY
+    - California → CA
+    - Pennsylvania → PA
+    - Connecticut → CT
+    - Massachusetts → MA
+    - Virginia → VA
+    - North Carolina → NC
+    - South Carolina → SC
+    - Florida → FL
+    - Texas → TX
+    - If the PDF already contains a two-letter state abbreviation, preserve it exactly.
+    - Never return the full state name.
     - Do not use the vendor/pay-to name as customer_name.
     - Do not use "Redmax", "RedMax", "Steven Willand", or other vendor/pay-to names as customer_name unless they are clearly inside the Ship To block.
     - Ignore phone numbers, fax numbers, emails, account numbers, PO status, dates, totals, and payment info when extracting address.
