@@ -48,11 +48,11 @@ USERS_CSV = "Users.csv"
 
 # Upload settings
 UPLOAD_FOLDER = "uploads"
-ALLOWED_EXTENSIONS = {"pdf", "xlsx", "xls"}
+ALLOWED_EXTENSIONS = {"pdf", "xlsx", "xls", "csv"}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
 
 def login_required(func):
     @wraps(func)
@@ -76,7 +76,7 @@ def parse_uploaded_file(file_path: str, ext: str):
     if ext == "pdf":
         return extract_pdf_order_details(file_path)
 
-    if ext in {"xlsx", "xls"}:
+    if ext in {"xlsx", "xls", "csv"}:
         return extract_excel_order_details(file_path)
 
     raise ValueError("Unsupported file type")
@@ -173,7 +173,7 @@ def dashboard():
             return redirect(url_for("dashboard"))
 
         if not allowed_file(uploaded_file.filename):
-            flash("Only PDF, XLSX, and XLS files are allowed.", "danger")
+            flash("Only PDF, XLSX, XLS, and CSV files are allowed.", "danger")
             return redirect(url_for("dashboard"))
 
         filename = secure_filename(uploaded_file.filename)

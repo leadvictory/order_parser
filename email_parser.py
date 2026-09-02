@@ -32,7 +32,7 @@ def parse_attachment_data(file_path):
     """
     ext = os.path.splitext(file_path)[1].lower()
 
-    if ext in {".xls", ".xlsx", ".xlsm"}:
+    if ext in {".xls", ".xlsx", ".xlsm", ".csv"}:
         return extract_po_data(file_path)
 
     if ext == ".pdf":
